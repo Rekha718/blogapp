@@ -5,8 +5,8 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { ArrowLeft, Save, Eye, Tag, X, Image } from 'lucide-react';
-import { createPost, updatePost, getPost } from '../api/posts'; 
+import { ArrowLeft, Save, Eye, Tag, X, Image, Trash2 } from 'lucide-react';
+import { createPost, updatePost, getPost, deletePost } from '../api/posts';
 
 interface CreateEditBlogPageProps {
   blogId?: string;
@@ -16,146 +16,168 @@ interface CreateEditBlogPageProps {
 
 const CreateEditBlogPage: React.FC<CreateEditBlogPageProps> = ({ blogId, onBack, onSave }) => {
   const { user } = useAuth();
-  const [isPreview, setIsPreview] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [newTag, setNewTag] = useState('');
+  const isEditing = !!blogId;
 
   const [formData, setFormData] = useState({
     title: '',
     content: '',
-    excerpt: '',
     image: '',
-    tags: [] as string[]
+    tags: [] as string[],
   });
 
-  const isEditing = !!blogId;
+  const [isPreview, setIsPreview] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [newTag, setNewTag] = useState('');
 
-  // Fetch post if editing
   useEffect(() => {
-    if (isEditing && blogId) {
-      getPost(blogId).then((data) => {
-        setFormData({
-          title: data.title || '',
-          content: data.content || '',
-          excerpt: data.excerpt || '',
-          image: data.images?.[0] || '',
-          tags: data.tags || []
-        });
-      });
+    const fetchPost = async () => {
+      if (isEditing && blogId) {
+        try {
+          const post = await getPost(blogId);
+          setFormData({
+            title: post.title,
+            content: post.content,
+            image: post.image,
+            tags: post.tags || [],
+          });
+        } catch (error) {
+          console.error('Failed to fetch post:', error);
+        }
+      }
+    };
+    fetchPost();
+  }, [blogId, isEditing]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleAddTag = () => {
+    if (newTag.trim() && !formData.tags.includes(newTag)) {
+      setFormData({ ...formData, tags: [...formData.tags, newTag.trim()] });
+      setNewTag('');
     }
-  }, [blogId]);
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    setFormData({ ...formData, tags: formData.tags.filter(tag => tag !== tagToRemove) });
+  };
 
   const handleSave = async () => {
-    if (!formData.title || !formData.content) return;
+    if (!user) return;
 
     setIsSaving(true);
-    const payload = {
-      title: formData.title,
-      content: formData.content,
-      excerpt: formData.excerpt,
-      tags: formData.tags,
-      images: formData.image ? [formData.image] : [],
-      author_id: user?.id || 'guest' // fallback if user not logged in
-    };
-
     try {
-      if (isEditing && blogId) {
-        await updatePost(blogId, payload);
+      if (isEditing) {
+        await updatePost(blogId!, {
+          ...formData,
+          authorId: user.id,
+        });
       } else {
-        await createPost(payload);
+        await createPost({
+          ...formData,
+          authorId: user.id,
+        });
       }
-      onSave(); // trigger refresh or navigation
-    } catch (err) {
-      console.error('Save error:', err);
+
+      onSave(); // ⬅️ Redirect to blog list
+    } catch (error) {
+      console.error('Failed to save blog post:', error);
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleAddTag = () => {
-    if (newTag && !formData.tags.includes(newTag)) {
-      setFormData({ ...formData, tags: [...formData.tags, newTag] });
-      setNewTag('');
-    }
-  };
+  const handleDelete = async () => {
+    if (!isEditing || !blogId) return;
 
-  const handleRemoveTag = (tag: string) => {
-    setFormData({ ...formData, tags: formData.tags.filter((t) => t !== tag) });
+    const confirmDelete = window.confirm('Are you sure you want to delete this blog post?');
+    if (!confirmDelete) return;
+
+    setIsDeleting(true);
+    try {
+      await deletePost(blogId);
+      onSave(); // ⬅️ Redirect to blog list
+    } catch (error) {
+      console.error('Failed to delete blog post:', error);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   return (
     <Card className="max-w-4xl mx-auto mt-6">
-      <CardHeader className="flex flex-row justify-between items-center">
-        <div className="flex items-center space-x-2">
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div className="flex items-center gap-2">
           <ArrowLeft onClick={onBack} className="cursor-pointer" />
-          <CardTitle>{isEditing ? 'Edit' : 'Create'} Blog Post</CardTitle>
+          <CardTitle>{isEditing ? 'Edit Blog' : 'Create Blog'}</CardTitle>
         </div>
-        <div className="flex space-x-2">
-          <Button variant="outline" onClick={() => setIsPreview(!isPreview)}>
-            <Eye className="mr-2 h-4 w-4" /> Preview
-          </Button>
+        <div className="flex gap-2">
           <Button onClick={handleSave} disabled={isSaving}>
-            <Save className="mr-2 h-4 w-4" /> {isSaving ? 'Saving...' : 'Save'}
+            <Save className="mr-2 h-4 w-4" />
+            {isSaving ? 'Saving...' : 'Save'}
+          </Button>
+          {isEditing && (
+            <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
+              <Trash2 className="mr-2 h-4 w-4" />
+              {isDeleting ? 'Deleting...' : 'Delete'}
+            </Button>
+          )}
+          <Button variant="ghost" onClick={() => setIsPreview(!isPreview)}>
+            <Eye className="mr-2 h-4 w-4" />
+            {isPreview ? 'Edit' : 'Preview'}
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div>
-          <Label>Title</Label>
-          <Input
-            value={formData.title}
-            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-          />
-        </div>
-        <div>
-          <Label>Excerpt</Label>
-          <Textarea
-            value={formData.excerpt}
-            onChange={(e) => setFormData({ ...formData, excerpt: e.target.value })}
-          />
-        </div>
-        <div>
-          <Label>Content</Label>
-          <Textarea
-            className="min-h-[150px]"
-            value={formData.content}
-            onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-          />
-        </div>
-        <div>
-          <Label>Image URL</Label>
-          <div className="flex items-center space-x-2">
-            <Input
-              value={formData.image}
-              onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-            />
-            {formData.image && <Image />}
+
+      <CardContent>
+        {isPreview ? (
+          <div className="prose max-w-full">
+            <h2>{formData.title}</h2>
+            <img src={formData.image} alt="Blog" />
+            <p>{formData.content}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {formData.tags.map((tag, i) => (
+                <span key={i} className="bg-gray-200 px-2 py-1 rounded text-sm">
+                  #{tag}
+                </span>
+              ))}
+            </div>
           </div>
-        </div>
-        <div>
-          <Label>Tags</Label>
-          <div className="flex space-x-2 mb-2">
-            <Input
-              value={newTag}
-              onChange={(e) => setNewTag(e.target.value)}
-              placeholder="New tag"
-            />
-            <Button variant="secondary" onClick={handleAddTag}>
-              <Tag className="mr-1 h-4 w-4" /> Add
-            </Button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {formData.tags.map((tag, index) => (
-              <span key={index} className="bg-gray-200 px-2 py-1 rounded-full flex items-center">
-                {tag}
-                <X
-                  onClick={() => handleRemoveTag(tag)}
-                  className="ml-2 h-4 w-4 cursor-pointer"
-                />
-              </span>
-            ))}
-          </div>
-        </div>
+        ) : (
+          <form className="space-y-4">
+            <div>
+              <Label htmlFor="title">Title</Label>
+              <Input name="title" value={formData.title} onChange={handleChange} />
+            </div>
+            <div>
+              <Label htmlFor="image">Image URL</Label>
+              <Input name="image" value={formData.image} onChange={handleChange} />
+            </div>
+            <div>
+              <Label htmlFor="content">Content</Label>
+              <Textarea name="content" value={formData.content} onChange={handleChange} rows={8} />
+            </div>
+            <div>
+              <Label>Tags</Label>
+              <div className="flex gap-2">
+                <Input value={newTag} onChange={(e) => setNewTag(e.target.value)} />
+                <Button type="button" onClick={handleAddTag}>
+                  <Tag className="mr-1 h-4 w-4" /> Add Tag
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {formData.tags.map((tag, i) => (
+                  <span key={i} className="bg-gray-100 px-2 py-1 rounded flex items-center gap-1 text-sm">
+                    #{tag}
+                    <X className="h-3 w-3 cursor-pointer" onClick={() => handleRemoveTag(tag)} />
+                  </span>
+                ))}
+              </div>
+            </div>
+          </form>
+        )}
       </CardContent>
     </Card>
   );

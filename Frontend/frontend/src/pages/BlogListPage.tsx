@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import BlogCard from '../components/BlogCard';
-import { BlogPost } from '../components/BlogCard'; // or '../types' if you have a separate types file
+import BlogCard, { BlogPost } from '../components/BlogCard';
 
-const BlogListPage: React.FC = () => {
+interface BlogListPageProps {
+  onSelectBlog: (blogId: string) => void;
+}
+
+const BlogListPage: React.FC<BlogListPageProps> = ({ onSelectBlog }) => {
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -12,6 +15,7 @@ const BlogListPage: React.FC = () => {
         const res = await fetch('http://localhost:3000/api/posts');
         const data = await res.json();
 
+        // Map API response to BlogPost interface
         const mappedPosts: BlogPost[] = data.map((post: any) => ({
           post_id: post.post_id,
           author_id: post.author_id,
@@ -24,19 +28,15 @@ const BlogListPage: React.FC = () => {
         }));
 
         setPosts(mappedPosts);
-        setLoading(false);
       } catch (error) {
         console.error('Error fetching posts:', error);
+      } finally {
         setLoading(false);
       }
     };
 
     fetchPosts();
   }, []);
-
-  const handleCardClick = (post: BlogPost) => {
-    console.log('Clicked:', post.title);
-  };
 
   if (loading) {
     return <p className="text-center mt-10 text-gray-500">Loading posts...</p>;
@@ -50,7 +50,11 @@ const BlogListPage: React.FC = () => {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {posts.map((post) => (
-          <BlogCard key={post.post_id} post={post} onClick={() => handleCardClick(post)} />
+          <BlogCard
+            key={post.post_id}
+            post={post}
+            onClick={() => onSelectBlog(post.post_id.toString())}
+          />
         ))}
       </div>
     </div>

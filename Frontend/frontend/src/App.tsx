@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Toaster } from './components/ui/toaster';
@@ -15,7 +14,14 @@ import AdminDashboard from './pages/AdminDashboard';
 // Components
 import Navigation from './components/Navigation';
 
-type AppPage = 'auth' | 'blogs' | 'blog-detail' | 'create-blog' | 'edit-blog' | 'profile' | 'admin';
+type AppPage =
+  | 'auth'
+  | 'blogs'
+  | 'blog-detail'
+  | 'create-blog'
+  | 'edit-blog'
+  | 'profile'
+  | 'admin';
 
 const AppContent: React.FC = () => {
   const { user, isAuthenticated } = useAuth();
@@ -27,6 +33,9 @@ const AppContent: React.FC = () => {
     setCurrentPage(page);
     if (blogId) {
       setSelectedBlogId(blogId);
+    } else if (page !== 'blog-detail') {
+      // Clear selected blog if navigating away from detail
+      setSelectedBlogId(null);
     }
   };
 
@@ -45,6 +54,7 @@ const AppContent: React.FC = () => {
   };
 
   const handleBlogSaved = () => {
+    setSelectedBlogId(null);
     setCurrentPage('blogs');
   };
 
@@ -53,26 +63,27 @@ const AppContent: React.FC = () => {
     setCurrentPage('edit-blog');
   };
 
-  // Show auth page if not authenticated (unless browsing as guest)
-  if (!isAuthenticated && currentPage !== 'blogs' && currentPage !== 'blog-detail') {
+  // Show auth page if not authenticated (unless browsing as guest on blogs or blog-detail)
+  if (
+    !isAuthenticated &&
+    !['blogs', 'blog-detail', 'auth'].includes(currentPage)
+  ) {
     return <AuthPage onAuthSuccess={handleAuthSuccess} />;
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Navigation - show for authenticated users or guests browsing blogs */}
-      {(isAuthenticated || currentPage === 'blogs' || currentPage === 'blog-detail') && (
+      {(isAuthenticated || ['blogs', 'blog-detail'].includes(currentPage)) && (
         <Navigation currentPage={currentPage} onNavigate={handleNavigate} />
       )}
 
       {/* Main Content */}
       <main>
         {currentPage === 'auth' && <AuthPage onAuthSuccess={handleAuthSuccess} />}
-        
-        {currentPage === 'blogs' && (
-          <BlogListPage onSelectBlog={handleSelectBlog} />
-        )}
-        
+
+        {currentPage === 'blogs' && <BlogListPage onSelectBlog={handleSelectBlog} />}
+
         {currentPage === 'blog-detail' && selectedBlogId && (
           <BlogDetailPage
             blogId={selectedBlogId}
@@ -80,14 +91,11 @@ const AppContent: React.FC = () => {
             onEdit={handleEditBlog}
           />
         )}
-        
+
         {currentPage === 'create-blog' && isAuthenticated && (
-          <CreateEditBlogPage
-            onBack={handleBackToBlogs}
-            onSave={handleBlogSaved}
-          />
+          <CreateEditBlogPage onBack={handleBackToBlogs} onSave={handleBlogSaved} />
         )}
-        
+
         {currentPage === 'edit-blog' && selectedBlogId && isAuthenticated && (
           <CreateEditBlogPage
             blogId={selectedBlogId}
@@ -95,19 +103,18 @@ const AppContent: React.FC = () => {
             onSave={handleBlogSaved}
           />
         )}
-        
+
         {currentPage === 'profile' && isAuthenticated && (
           <ProfilePage onSelectBlog={handleSelectBlog} />
         )}
-        
-        {currentPage === 'admin' && user?.role === 'admin' && (
-          <AdminDashboard />
-        )}
+
+        {currentPage === 'admin' && user?.role === 'admin' && <AdminDashboard />}
 
         {/* Redirect to auth for protected pages when not authenticated */}
-        {!isAuthenticated && ['create-blog', 'edit-blog', 'profile', 'admin'].includes(currentPage) && (
-          <AuthPage onAuthSuccess={handleAuthSuccess} />
-        )}
+        {!isAuthenticated &&
+          ['create-blog', 'edit-blog', 'profile', 'admin'].includes(currentPage) && (
+            <AuthPage onAuthSuccess={handleAuthSuccess} />
+          )}
       </main>
 
       <Toaster />
@@ -116,12 +123,10 @@ const AppContent: React.FC = () => {
   );
 };
 
-const App: React.FC = () => {
-  return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
-  );
-};
+const App: React.FC = () => (
+  <AuthProvider>
+    <AppContent />
+  </AuthProvider>
+);
 
 export default App;

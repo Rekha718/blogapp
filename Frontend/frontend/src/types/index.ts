@@ -9,7 +9,8 @@ export interface User {
 }
 
 export interface BlogPost {
-  id: string;
+  post_id: number;
+  author_id: number;      
   title: string;
   content: string;
   tags: string[];
@@ -17,6 +18,7 @@ export interface BlogPost {
   created_at: string;
   updated_at: string;
 }
+
 
 
 
